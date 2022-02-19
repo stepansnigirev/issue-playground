@@ -40,20 +40,19 @@ def main():
     )
     print(rawtx)
 
-    rawissue = w.rawissueasset(rawtx, [{
+    issueconf = {
         "asset_amount": 1000,
         "asset_address": DESC.derive(2).address(NETWORK),
+        "blind": True,
+        # comment out these two lines if you don't need reissuances
         "token_amount": 1,
         "token_address": DESC.derive(3).address(NETWORK),
-        "blind": True,
-    }])[0]
+    }
+
+    rawissue = w.rawissueasset(rawtx, [issueconf])[0]
+    if "token_amount" not in issueconf:
+        del assetinfo["reissuance_asset_tag"]
     print(rawissue)
-
-    # rawsigned = wh.signrawtransactionwithwallet(rawissue["hex"])
-    # print(rawsigned)
-
-    # pprint(w.decoderawtransaction(rawsigned["hex"]))
-    # print(w.testmempoolaccept([rawsigned["hex"]]))
 
     unsigned = w.converttopsbt(rawissue["hex"])
     print(unsigned)
