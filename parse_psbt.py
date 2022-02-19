@@ -2,10 +2,13 @@ from gen_issue import *
 import json
 import os
 from embit.liquid.pset import PSET
+from embit.liquid.psetview import PSETView
 from embit.liquid.transaction import LTransaction
 from embit import ec, bip39, bip32
 from embit.script import p2pkh_from_p2wpkh
 import sys
+from io import BytesIO
+from binascii import a2b_base64
 
 def main():
     root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(MNEMONIC))
@@ -14,11 +17,15 @@ def main():
         fname = os.path.join("data", file)
         with open(fname, "r") as f:
             obj = json.load(f)
+        # no need to save stuff
+        nodump = False
         # already signed
         if "sighash_rangeproof" in obj["issue"]:
-            continue
+            nodump = True
+            # continue
         b64psbt = obj["issue"]["blinded"]
         pset = PSET.from_string(b64psbt)
+        pv = PSETView.view(BytesIO(a2b_base64(b64psbt)))
         inp = pset.inputs[0]
 
         print(pset.inputs[0].vout)
@@ -39,8 +46,13 @@ def main():
         btx = pset.blinded_tx
         sighash = (btx.sighash_segwit(0, p2pkh_from_p2wpkh(inp.utxo.script_pubkey), inp.utxo.value, 1))
         print(sighash)
+        sighash2 = (pv.sighash_segwit(0, p2pkh_from_p2wpkh(inp.utxo.script_pubkey), inp.utxo.value, 1))
+        print(sighash2)
+        assert sighash == sighash2
 
         pset.sign_with(root, 0x41)
+        if nodump:
+            continue
         obj["issue"]["sighash_rangeproof"] = str(pset)
         with open(fname, "w") as f:
             f.write(json.dumps(obj, indent=2))
