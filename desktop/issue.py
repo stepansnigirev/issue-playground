@@ -77,15 +77,15 @@ def issue(w, ticker, name, asset_amount, domain, precision=0, token_amount=0, as
     print(backup)
 
     # validate
-    data = {
-        "contract": contract_obj,
-        "contract_hash": contract_hash[::-1].hex()
-    }
-    res = requests.get(f"{ASSET_API}contract/validate", headers={'content-type': 'application/json'}, data=json.dumps(data))
-    print(res.status_code)
-    print(res.text)
+    # data = {
+    #     "contract": contract_obj,
+    #     "contract_hash": contract_hash[::-1].hex()
+    # }
+    # res = requests.post(f"{ASSET_API}contract/validate", headers={'content-type': 'application/json'}, data=json.dumps(data))
+    # print(res.status_code)
+    # print(res.text)
 
-def main():
+def main2():
     c = '{"entity":{"domain":"embit.tech"},"issuer_pubkey":"03edc630d8e93f1de744c0cd73599e57a79f5cb8f645cce1de89e9e4e3d35406f1","name":"Burbur coin","precision":2,"ticker":"BRRCN","version":0}'
     contract_hash = hashlib.sha256(c.encode()).digest()
     print(contract_hash[::-1].hex())
@@ -98,12 +98,12 @@ def main():
         "contract": json.loads(c),
     }
     print(data)
-    # res = requests.post(f"{ASSET_API}contract/validate", headers={'Content-type': 'application/json'}, data=json.dumps(data))
-    res = requests.post(f"{ASSET_API}", headers={'Content-type': 'application/json'}, data=json.dumps(data))
+    # res = requests.post(f"{ASSET_API}contract/validate", headers={'content-type': 'application/json'}, data=json.dumps(data))
+    res = requests.post(f"{ASSET_API}", headers={'content-type': 'application/json'}, data=json.dumps(data))
     print(res.status_code)
     print(res.text)
 
-def main2():
+def main():
     rpc = find_rpc(net="liquidtestnet")
     a1 = "tlq1qqfsdk6xlq3xcxd5uey63r9hjse5juk0pf3ffsmlhyqxuwjz3uslzvucqcedjtlavdgttk888m69l87jkps5wvj276l02w873x"
     a2 = "tlq1qqgy7cz7fgalxmqgg6xng2m76m862p9hz9jdjgkcveskl0uqtt2ymy82k426fqrs9vl74xdm7g6m40psjuhv4krnxw75fc9f4x"
