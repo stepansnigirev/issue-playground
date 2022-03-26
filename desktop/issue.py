@@ -34,6 +34,7 @@ def issue(w, ticker, name, asset_amount, domain, precision=0, token_amount=0, as
         [{"txid": utxo["txid"], "vout": utxo["vout"]}],
         [{ w.getrawchangeaddress(): round(utxo["amount"]-FEE, 8)}, {"fee": FEE}]
     )
+    print(rawtx)
     issueconf = {
         "asset_amount": asset_amount,
         "asset_address": asset_address,
