@@ -2,10 +2,12 @@ from rpc import find_rpc, BitcoinRPC
 import hashlib
 import json
 import requests
+import math
 
 VERSION = 0
 FEE = 1000e-8 # 1000 sats
 ASSET_API = "https://assets-testnet.blockstream.info/"
+FEE_RATE = 0.1
 
 def issue(w, ticker, name, asset_amount, domain, precision=0, token_amount=0, asset_address=None, token_address=None, pubkey=None, collection="", blind=True):
     asset_address = asset_address or w.getnewaddress()
@@ -18,6 +20,7 @@ def issue(w, ticker, name, asset_amount, domain, precision=0, token_amount=0, as
         contract=f'{{"collection":"{collection}","entity":{{"domain":"{domain}"}},"issuer_pubkey":"{pubkey}","name":"{name}","precision":{precision},"ticker":"{ticker}","version":{VERSION}}}'
     print("Contract", contract)
     contract_hash = hashlib.sha256(contract.encode()).digest()
+    contract_obj = json.loads(contract)
     print("Contract hash", contract_hash.hex())
     print("Contract hash rev", contract_hash[::-1].hex())
     # fee at least 593 sats, makes sense to set to 1000 sats to be safe
@@ -30,37 +33,40 @@ def issue(w, ticker, name, asset_amount, domain, precision=0, token_amount=0, as
 
     utxos.sort(key=lambda utxo: -utxo["amount"])
     utxo = utxos[0]
-    rawtx = w.createrawtransaction(
-        [{"txid": utxo["txid"], "vout": utxo["vout"]}],
-        [{ w.getrawchangeaddress(): round(utxo["amount"]-FEE, 8)}, {"fee": FEE}]
-    )
-    print(rawtx)
-    issueconf = {
-        "asset_amount": asset_amount,
-        "asset_address": asset_address,
-        "blind": blind,
-        "contract_hash": contract_hash[::-1].hex(),
-    }
-    if token_amount != 0:
-        issueconf.update({
-            "token_amount": token_amount,
-            "token_address": token_address,
-        })
+    fee = FEE
+    # run twice - with base fee and then with real fee
+    for _ in range(2):
+        rawtx = w.createrawtransaction(
+            [{"txid": utxo["txid"], "vout": utxo["vout"]}],
+            [{ w.getrawchangeaddress(): round(utxo["amount"]-fee, 8)}, {"fee": fee}]
+        )
+        print(rawtx)
+        issueconf = {
+            "asset_amount": asset_amount,
+            "asset_address": asset_address,
+            "blind": blind,
+            "contract_hash": contract_hash[::-1].hex(),
+        }
+        if token_amount != 0:
+            issueconf.update({
+                "token_amount": token_amount,
+                "token_address": token_address,
+            })
 
-    rawissue = w.rawissueasset(rawtx, [issueconf])[0]
-    hextx = rawissue.pop("hex")
-    print(rawissue)
-    # unsigned = w.converttopsbt(rawissue["hex"])
-    # blinded = w.walletprocesspsbt(unsigned)["psbt"]
-    # finalized = w.finalizepsbt(blinded)['hex']
-    blinded = w.blindrawtransaction(hextx, False, [], blind)
-    finalized = w.signrawtransactionwithwallet(blinded)["hex"]
-    mempooltest = w.testmempoolaccept([finalized])[0]
-    print(mempooltest)
-    if not mempooltest["allowed"]:
-        raise RuntimeError(f"Tx can't be broadcasted: {mempooltest['reject-reason']}")
-
-    contract_obj = json.loads(contract)
+        rawissue = w.rawissueasset(rawtx, [issueconf])[0]
+        hextx = rawissue.pop("hex")
+        print(rawissue)
+        # unsigned = w.converttopsbt(rawissue["hex"])
+        # blinded = w.walletprocesspsbt(unsigned)["psbt"]
+        # finalized = w.finalizepsbt(blinded)['hex']
+        blinded = w.blindrawtransaction(hextx, False, [], blind)
+        finalized = w.signrawtransactionwithwallet(blinded)["hex"]
+        mempooltest = w.testmempoolaccept([finalized])[0]
+        print(mempooltest)
+        if not mempooltest["allowed"]:
+            raise RuntimeError(f"Tx can't be broadcasted: {mempooltest['reject-reason']}")
+        vsize = mempooltest["vsize"]
+        fee = round(math.ceil(vsize*FEE_RATE)*1e-8, 8)
 
     assetid = rawissue["asset"]
     backup = {
@@ -78,13 +84,14 @@ def issue(w, ticker, name, asset_amount, domain, precision=0, token_amount=0, as
     print(backup)
 
     # validate
-    # data = {
-    #     "contract": contract_obj,
-    #     "contract_hash": contract_hash[::-1].hex()
-    # }
-    # res = requests.post(f"{ASSET_API}contract/validate", headers={'content-type': 'application/json'}, data=json.dumps(data))
-    # print(res.status_code)
-    # print(res.text)
+    data = {
+        "contract": contract_obj,
+        "contract_hash": contract_hash[::-1].hex()
+    }
+    res = requests.post(f"{ASSET_API}contract/validate", headers={'content-type': 'application/json'}, data=json.dumps(data))
+    if (res.status_code < 200 or res.status_code >= 300):
+        raise RuntimeError(res.text)
+    print(res.text)
 
 def main2():
     c = '{"entity":{"domain":"embit.tech"},"issuer_pubkey":"03edc630d8e93f1de744c0cd73599e57a79f5cb8f645cce1de89e9e4e3d35406f1","name":"Burbur coin","precision":2,"ticker":"BRRCN","version":0}'
